@@ -1,4 +1,5 @@
 import argparse
+from audioop import reverse
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("filename", type=str, help="Source location")
@@ -70,6 +71,41 @@ def handle_total_arg(data_: list, year: int) -> tuple:
         for n, x in enumerate(medals))
     return title, header, body, separator
 
+def handle_overall_arg(data_: list, countries_list: list) -> tuple:
+    entries = [entry for entry in data_ if (entry['NOC'] in countries_list or entry['Team'].split('-')[0] in countries_list) and entry['Medal'] != 'NA']
+    if not entries: raise ValueError("No entries found")
+    countries_info = {}
+    for entry in entries:
+        country_name = entry['NOC']
+        year = entry['Year']
+        if country_name not in countries_info: countries_info[country_name] = {
+            'Name': entry['Team'].replace('/', '-').split('-')[0],
+            'Years': {}
+        }
+        if year not in countries_info[country_name]['Years']: countries_info[country_name]['Years'][year] = 0
+        countries_info[country_name]['Years'][year] += 1
+
+    max_medals = [
+        (countries_info[name]['Name'], str(year), str(countries_info[name]['Years'][year]))
+        for name in countries_info.keys()
+        for year in countries_info[name]['Years'].keys()
+        if countries_info[name]['Years'][year] == max(countries_info[name]['Years'].values())
+    ]
+    header_list = ('Country', 'Year', 'Medals')
+    max_len = [max(max(len(country[i]) for country in max_medals), len(header_list[i])) for i in range(3)]
+    string_len = sum(max_len) + 15
+
+    title: str = format_center('Best Performances:', string_len)
+    separator: str = '-' * string_len
+    header: str = f" №   | {' | '.join((format_center(x, max_len[i]) for i, x in enumerate(header_list)))} |"
+    body: str = '\n'.join(
+        f" {n + 1}. {' ' if n < 9 else ''}| " +
+        ' | '.join(
+            format_left(x[i], max_len[i]) if i == 0 else format_center(x[i], max_len[i])
+            for i in range(3)) + ' | '
+        for n, x in enumerate(max_medals))
+    return title, header, body, separator
+
 def handle_interactive_arg(data_: list):
     try:
         country = input("Country name or NOC(exit() if you want to close the program): ")
@@ -122,7 +158,7 @@ def main():
     elif config["total"]:
         output(*handle_total_arg(data, int(config["total"])))
     elif config["overall"]:
-        pass
+        output(*handle_overall_arg(data, config["overall"]))
     elif config["interactive"]:
         while True:
             handle_interactive_arg(data)
